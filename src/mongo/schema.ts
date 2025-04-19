@@ -1,7 +1,7 @@
 import { Collection } from "mongodb";
 import { MongoFieldSchema, MongoCollectionSchema } from "../interfaces/mongo";
 
-export function inferSchemaFromValue(value: unknown): string {
+function inferSchemaFromValue(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
   if (value instanceof Date) return "date";
@@ -9,7 +9,37 @@ export function inferSchemaFromValue(value: unknown): string {
   return typeof value;
 }
 
-export function inferSchemaFromDocument(
+function mergeFieldSchemas(
+  existing: MongoFieldSchema[] = [],
+  incoming: MongoFieldSchema[]
+): MongoFieldSchema[] {
+  const map = new Map<string, MongoFieldSchema>();
+
+  for (const field of [...existing, ...incoming]) {
+    const existingField = map.get(field.field);
+    if (!existingField) {
+      map.set(field.field, { ...field });
+    } else {
+      const types = new Set([
+        ...(existingField.type.split("|")),
+        ...(field.type.split("|")),
+      ]);
+      existingField.type = Array.from(types).sort().join("|");
+      existingField.isRequired = existingField.isRequired && field.isRequired;
+
+      if (field.subFields) {
+        existingField.subFields = mergeFieldSchemas(
+          existingField.subFields,
+          field.subFields
+        );
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+function inferSchemaFromDocument(
   doc: Record<string, unknown>,
   parentPath = ""
 ): MongoFieldSchema[] {
@@ -29,21 +59,24 @@ export function inferSchemaFromDocument(
         value as Record<string, unknown>,
         fieldPath
       );
-    } else if (
-      fieldType === "array" &&
-      Array.isArray(value) &&
-      value.length > 0
-    ) {
-      const arrayType = inferSchemaFromValue(value[0]);
-      if (arrayType === "object") {
-        field.subFields = inferSchemaFromDocument(
-          value[0] as Record<string, unknown>,
-          `${fieldPath}[]`
+    } else if (fieldType === "array" && Array.isArray(value) && value.length > 0) {
+      const elementTypes = new Set(value.map(inferSchemaFromValue));
+      field.type = `array<${Array.from(elementTypes).sort().join("|")}>`;
+
+      if (elementTypes.has("object")) {
+        field.subFields = mergeFieldSchemas(
+          [],
+          inferSchemaFromDocument(
+            value[0] as Record<string, unknown>,
+            `${fieldPath}[]`
+          )
         );
       }
     }
+
     schema.push(field);
   }
+
   return schema;
 }
 
@@ -51,58 +84,47 @@ export async function buildCollectionSchema(
   collection: Collection,
   sampleSize = 100
 ): Promise<MongoCollectionSchema> {
-  const docs = (await collection
-    .find({})
-    .limit(sampleSize)
-    .toArray()) as Record<string, unknown>[];
+  const docs = (await collection.find({}).limit(sampleSize).toArray()) as Record<
+    string,
+    unknown
+  >[];
   const count = await collection.countDocuments();
   const indexes = await collection.indexes();
 
-  const fieldSchemas = new Map<string, Set<string>>();
-  const requiredFields = new Set<string>();
-
-  docs.forEach((doc) => {
-    const docSchema = inferSchemaFromDocument(doc);
-    docSchema.forEach((field) => {
-      if (!fieldSchemas.has(field.field)) {
-        fieldSchemas.set(field.field, new Set());
-      }
-      fieldSchemas.get(field.field)!.add(field.type);
-      requiredFields.add(field.field);
-    });
-  });
-
-  docs.forEach((doc) => {
-    const docFields = new Set(Object.keys(doc));
-    for (const field of requiredFields) {
-      if (!docFields.has(field.split(".")[0])) {
-        requiredFields.delete(field);
-      }
-    }
-  });
-
-  const fields: MongoFieldSchema[] = Array.from(fieldSchemas.entries()).map(
-    ([field, types]) => ({
-      field,
-      type:
-        types.size === 1
-          ? types.values().next().value
-          : Array.from(types).join("|"),
-      isRequired: requiredFields.has(field),
-      subFields: undefined,
-    })
-  );
+  const aggregatedSchemaMap = new Map<string, MongoFieldSchema>();
+  const fieldPresenceMap = new Map<string, number>();
 
   for (const doc of docs) {
     const docSchema = inferSchemaFromDocument(doc);
-    docSchema.forEach((fieldSchema) => {
-      if (fieldSchema.subFields) {
-        const existingField = fields.find((f) => f.field === fieldSchema.field);
-        if (existingField && !existingField.subFields) {
-          existingField.subFields = fieldSchema.subFields;
+
+    for (const field of docSchema) {
+      // Track how many times each field appeared
+      fieldPresenceMap.set(field.field, (fieldPresenceMap.get(field.field) || 0) + 1);
+
+      if (!aggregatedSchemaMap.has(field.field)) {
+        aggregatedSchemaMap.set(field.field, { ...field });
+      } else {
+        const existing = aggregatedSchemaMap.get(field.field)!;
+        const types = new Set([...existing.type.split("|"), ...field.type.split("|")]);
+        existing.type = Array.from(types).sort().join("|");
+
+        // Merge subfields if any
+        if (field.subFields) {
+          existing.subFields = mergeFieldSchemas(
+            existing.subFields,
+            field.subFields
+          );
         }
       }
-    });
+    }
+  }
+
+  // Mark required fields (those present in all docs)
+  const fields: MongoFieldSchema[] = [];
+  for (const field of aggregatedSchemaMap.values()) {
+    const presenceCount = fieldPresenceMap.get(field.field) || 0;
+    field.isRequired = presenceCount === docs.length;
+    fields.push(field);
   }
 
   return {

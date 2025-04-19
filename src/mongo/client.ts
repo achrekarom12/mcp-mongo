@@ -1,22 +1,30 @@
 import { MongoClient, Db } from "mongodb";
 
-export let client: MongoClient;
-export let db: Db;
-
-export async function connectToMongoDB(databaseUrl: string) {
+export async function connectMongoDB(databaseUrl: string, dbName: string, collectionName: string) {
   try {
-    client = new MongoClient(databaseUrl);
+    if (!databaseUrl || !dbName || !collectionName) {
+      throw new Error("Something is missing");
+    }
+
+    const client: MongoClient = new MongoClient(databaseUrl);
     await client.connect();
-    const resourceBaseUrl = new URL(databaseUrl);
-    const dbName = resourceBaseUrl.pathname.split("/")[1] || "test";
-    console.error(`Connecting to database: ${dbName}`);
-    db = client.db(dbName);
+    
+    const db: Db = client.db(dbName);
+    console.log(`Connected to database: ${dbName}`);
+
+    const collection = db.collection(collectionName);
+    return collection;
   } catch (error) {
     console.error("MongoDB connection error:", error);
     throw error;
   }
 }
 
-export async function closeMongoDB() {
-  await client?.close();
+export async function closeMongoDB(client: MongoClient | null) {
+  if (client) {
+    await client.close();
+    console.log("MongoDB connection closed");
+  } else {
+    console.warn("MongoDB client was not initialized.");
+  }
 }
