@@ -1,13 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { connectMongoDB } from "./mongo/client";
+import { client, connectMongoDB } from "./mongo/client";
 import { config } from "dotenv";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { ToolRegistry } from "./tools/registry";
-
+import { getCollectionSchema } from "./mongo/schema";
+import { Collection, Document } from "mongodb";
 config();
 
 const toolRegistry = new ToolRegistry();
@@ -74,6 +75,9 @@ async function main() {
   await server.connect(transport);
   console.log("mcp-mongo running on stdio");
   await connectMongoDB(databaseUrl || "");
+  console.log("connected to mongodb");
+  const schema = await getCollectionSchema(client?.db().collection("listingAndReviews") as Collection<Document>);
+  console.log(schema);
 }
 
 main().catch((error) => {
