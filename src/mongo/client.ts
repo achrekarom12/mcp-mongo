@@ -2,20 +2,11 @@ import { MongoClient, Db } from "mongodb";
 
 let client: MongoClient | null = null;
 
-export async function connectMongoDB(databaseUrl: string, dbName: string, collectionName: string) {
+export async function connectMongoDB(databaseUrl: string) {
   try {
-    if (!databaseUrl || !dbName || !collectionName) {
-      throw new Error("Something is missing");
-    }
-
-    const client: MongoClient = new MongoClient(databaseUrl);
+    client = new MongoClient(databaseUrl);
     await client.connect();
-    
-    const db: Db = client.db(dbName);
-    console.log(`Connected to database: ${dbName}`);
-
-    const collection = db.collection(collectionName);
-    return collection;
+    console.log(`Connected to database: ${client.db().databaseName}`);
   } catch (error) {
     console.error("MongoDB connection error:", error);
     throw error;
