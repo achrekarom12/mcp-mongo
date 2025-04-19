@@ -1,5 +1,7 @@
 import { MongoClient, Db } from "mongodb";
 
+let client: MongoClient | null = null;
+
 export async function connectMongoDB(databaseUrl: string, dbName: string, collectionName: string) {
   try {
     if (!databaseUrl || !dbName || !collectionName) {
@@ -28,3 +30,5 @@ export async function closeMongoDB(client: MongoClient | null) {
     console.warn("MongoDB client was not initialized.");
   }
 }
+
+export { client };
