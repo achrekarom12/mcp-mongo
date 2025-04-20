@@ -6,6 +6,7 @@ export interface FindParams extends ToolParams {
   filter?: Record<string, unknown>;
   limit?: number;
   projection?: Record<string, unknown>;
+  sort?: Record<string, unknown>;
 }
 
 export class FindDocumentTool extends BaseTool<FindParams> {
@@ -33,6 +34,11 @@ export class FindDocumentTool extends BaseTool<FindParams> {
       projection: {
         type: "object",
         description: "Fields to include/exclude",
+        default: {},
+      },
+      sort: {
+        type: "object",
+        description: "Sort order",
         default: {},
       },
     },

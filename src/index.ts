@@ -76,8 +76,6 @@ async function main() {
   console.log("mcp-mongo running on stdio");
   await connectMongoDB(databaseUrl || "");
   console.log("connected to mongodb");
-  const schema = await getCollectionSchema(client?.db().collection("listingAndReviews") as Collection<Document>);
-  console.log(schema);
 }
 
 main().catch((error) => {

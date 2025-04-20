@@ -1,6 +1,8 @@
 import { BaseTool } from "./base";
-import { ListCollectionTool } from "./list-collection-tool";
 import { FindDocumentTool } from "./find-document";
+import { InsertDocumentTool } from "./insert-document";
+import { UpdateDocumentTool } from "./update-document";
+import { ListCollectionTool } from "./list-collection-tool";
 import { GetCollectionSchemaTool } from "./get-collection-schema";
 import { McpError, ErrorCode, Tool } from "@modelcontextprotocol/sdk/types.js";
 
@@ -11,6 +13,8 @@ export class ToolRegistry {
     this.registerTool(new ListCollectionTool());
     this.registerTool(new GetCollectionSchemaTool());
     this.registerTool(new FindDocumentTool());
+    this.registerTool(new InsertDocumentTool());
+    this.registerTool(new UpdateDocumentTool());
   }
 
   // register a tool into the registry
