@@ -1,4 +1,7 @@
 import { BaseTool } from "./base";
+import { ListIndexesTool } from "./list-index";
+import { DeleteIndexTool } from "./delete-index";
+import { CreateIndexTool } from "./create-index";
 import { FindDocumentTool } from "./find-document";
 import { InsertDocumentTool } from "./insert-document";
 import { UpdateDocumentTool } from "./update-document";
@@ -15,6 +18,9 @@ export class ToolRegistry {
     this.registerTool(new FindDocumentTool());
     this.registerTool(new InsertDocumentTool());
     this.registerTool(new UpdateDocumentTool());
+    this.registerTool(new DeleteIndexTool());
+    this.registerTool(new CreateIndexTool());
+    this.registerTool(new ListIndexesTool());
   }
 
   // register a tool into the registry
